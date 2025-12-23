@@ -15,14 +15,14 @@ export default function LoginPage() {
     let mounted = true;
 
     async function loadSession() {
-      const { data } = await supabase.auth.getSession();
+      const { data } = await supabase!.auth.getSession();
       if (!mounted) return;
       setUser(data.session?.user ?? null);
     }
 
     loadSession();
 
-    const { data: listener } = supabase.auth.onAuthStateChange(
+    const { data: listener } = supabase!.auth.onAuthStateChange(
       (_event, session) => {
         setUser(session?.user ?? null);
       }
@@ -37,7 +37,7 @@ export default function LoginPage() {
   const handleSignUp = async () => {
     setLoading(true);
     setMessage("");
-    const { error } = await supabase.auth.signUp({ email, password });
+    const { error } = await supabase!.auth.signUp({ email, password });
     setLoading(false);
     if (error) setMessage(error.message);
     else setMessage("Check your email for a confirmation link (if enabled).");
@@ -47,7 +47,7 @@ export default function LoginPage() {
     setLoading(true);
     setMessage("");
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { error } = await supabase!.auth.signInWithPassword({
       email,
       password,
     });
@@ -57,7 +57,7 @@ export default function LoginPage() {
   };
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
+    await supabase!.auth.signOut();
     setMessage("Signed out.");
   };
 
@@ -69,7 +69,7 @@ export default function LoginPage() {
     try {
       const redirectTo =
         typeof window !== "undefined" ? window.location.origin : undefined;
-      const { error } = await supabase.auth.signInWithOAuth({
+      const { error } = await supabase!.auth.signInWithOAuth({
         provider,
         options: { redirectTo },
       });

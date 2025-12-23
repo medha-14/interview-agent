@@ -11,14 +11,14 @@ export default function AuthStatus() {
     let mounted = true;
 
     async function load() {
-      const { data } = await supabase.auth.getSession();
+      const { data } = await supabase!.auth.getSession();
       if (!mounted) return;
       setUser(data.session?.user ?? null);
     }
 
     load();
 
-    const { data: listener } = supabase.auth.onAuthStateChange(
+    const { data: listener } = supabase!.auth.onAuthStateChange(
       (_event, session) => {
         setUser(session?.user ?? null);
       }
@@ -31,7 +31,7 @@ export default function AuthStatus() {
   }, []);
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
+    await supabase!.auth.signOut();
   };
 
   return (
