@@ -29,6 +29,13 @@ export default function AccountPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (userEmail) {
+      // If user is signed in, send them to the dashboard/profile page
+      router.push("/dashboard");
+    }
+  }, [userEmail, router]);
+
   const handleSignOut = async () => {
     await supabase!.auth.signOut();
     // send user home after sign-out

@@ -1,12 +1,37 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
+import AuthStatus from "./AuthStatus";
+import { supabase } from "../lib/supabaseClient";
 
 function dispatchToggle(mode?: string | null) {
   window.dispatchEvent(new CustomEvent("toggleAuth", { detail: mode ?? null }));
 }
 
 export default function Nav() {
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function load() {
+      const { data } = await supabase!.auth.getSession();
+      if (!mounted) return;
+      setUser(data.session?.user ?? null);
+    }
+
+    load();
+
+    const { data: listener } = supabase!.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => {
+      mounted = false;
+      listener.subscription.unsubscribe();
+    };
+  }, []);
+
   return (
     <nav className="fixed w-full z-50 border-b border-white/5 glass-card py-4">
       <div className="max-w-7xl mx-auto px-6 flex justify-between items-center">
@@ -23,9 +48,15 @@ export default function Nav() {
           <a href="#contact" className="nav-link">Contact</a>
         </div>
 
-        <div className="flex gap-4">
-          <button onClick={() => dispatchToggle("login")} className="text-sm font-medium hover:text-white transition">Log in</button>
-          <button onClick={() => dispatchToggle("signup")} className="glow-button bg-blue-600 px-5 py-2 rounded-lg text-sm font-semibold">Get Started</button>
+        <div className="flex gap-4 items-center">
+          {user ? (
+            <AuthStatus />
+          ) : (
+            <>
+              <button onClick={() => dispatchToggle("login")} className="text-sm font-medium hover:text-white transition">Log in</button>
+              <button onClick={() => dispatchToggle("signup")} className="glow-button bg-blue-600 px-5 py-2 rounded-lg text-sm font-semibold">Get Started</button>
+            </>
+          )}
         </div>
       </div>
     </nav>

@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import AuthStatus from "../components/AuthStatus";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -28,9 +27,9 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {/* Simple site header: keep auth controls visible on every page */}
+        {/* Simple site header: header reserved for page-level controls (Nav will show auth) */}
         <header style={{ display: "flex", justifyContent: "flex-end", padding: 12 }}>
-          <AuthStatus />
+          {/* AuthStatus intentionally removed from the top-right; Nav will render it near the navbar */}
         </header>
 
         {children}

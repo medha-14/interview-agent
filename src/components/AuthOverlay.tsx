@@ -10,6 +10,7 @@ export default function AuthOverlay() {
   // Local email/password state + validation for the overlay
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -28,7 +29,7 @@ export default function AuthOverlay() {
 
   async function handleOAuth(provider: "google" | "github") {
     // Redirect back to the account page after OAuth completes
-    const redirectTo = typeof window !== "undefined" ? `${window.location.origin}/account` : undefined;
+    const redirectTo = typeof window !== "undefined" ? `${window.location.origin}/dashboard` : undefined;
     await supabase!.auth.signInWithOAuth({ provider, options: { redirectTo } });
   }
 
@@ -49,7 +50,7 @@ export default function AuthOverlay() {
       if (error) return setMessage(error.message || "Sign in failed");
       // success
       close();
-      router.push("/account");
+      router.push("/dashboard");
     } catch (err) {
       setLoading(false);
       console.error("[AuthOverlay] signIn exception", err);
@@ -59,20 +60,40 @@ export default function AuthOverlay() {
 
   async function handleSignUp() {
     setMessage("");
+    const fullName = name.trim();
     if (!email) return setMessage("Email is required.");
     if (!emailRegex.test(email)) return setMessage("Invalid email address.");
     if (!password) return setMessage("Password is required.");
+    if (!fullName) return setMessage("Please provide your full name.");
     if (!supabase) return setMessage("Supabase not initialized.");
 
     setLoading(true);
     try {
-      const { data, error } = await supabase.auth.signUp({ email, password });
+      // Pass the user's name into user metadata on signup so we can show it in profile
+      const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { full_name: fullName } } });
       console.log("[AuthOverlay] signUp result", { data, error });
       setLoading(false);
       if (error) return setMessage(error.message || "Sign up failed");
+      // If we have an active session (some projects auto-sign-in), update the user's metadata
+      // so `full_name` is reliably available. If signUp didn't produce a session (email confirm flow),
+      // the metadata may be set server-side or require confirmation — notify user.
+      try {
+        if ((data as any)?.session) {
+          // update user metadata explicitly to ensure full_name is set
+          await supabase.auth.updateUser({ data: { full_name: fullName } });
+        }
+      } catch (err) {
+        console.warn("Could not update user metadata after signUp", err);
+      }
+
       close();
-      if ((data as any)?.session) router.push("/account");
-      else setMessage("Check your email for a confirmation link (if enabled).");
+      if ((data as any)?.session) {
+        // refresh session and redirect to dashboard
+        await supabase.auth.getSession();
+        router.push("/dashboard");
+      } else {
+        setMessage("Check your email for a confirmation link (if enabled).");
+      }
     } catch (err) {
       setLoading(false);
       console.error("[AuthOverlay] signUp exception", err);
@@ -116,6 +137,9 @@ export default function AuthOverlay() {
           </div>
 
           <div className="space-y-4">
+            {mode === "signup" && (
+              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" className="w-full bg-slate-900 border border-white/10 text-white p-3 px-4 rounded-xl focus:outline-none focus:border-blue-500 transition" />
+            )}
             <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email Address" className="w-full bg-slate-900 border border-white/10 text-white p-3 px-4 rounded-xl focus:outline-none focus:border-blue-500 transition" />
             <input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" type="password" className="w-full bg-slate-900 border border-white/10 text-white p-3 px-4 rounded-xl focus:outline-none focus:border-blue-500 transition" />
             <button onClick={mode === "login" ? handleSignIn : handleSignUp} disabled={loading} className="w-full glow-button bg-blue-600 text-white font-bold py-3 rounded-xl mt-4">{loading ? "Please wait..." : "Continue"}</button>

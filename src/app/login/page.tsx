@@ -10,6 +10,7 @@ export default function LoginPage() {
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -37,6 +38,7 @@ export default function LoginPage() {
 
   const handleSignUp = async () => {
     const emailRegex = /^\S+@\S+\.\S+$/;
+    const fullName = name.trim();
     if (!email) {
       setMessage("Email is required.");
       return;
@@ -49,6 +51,10 @@ export default function LoginPage() {
       setMessage("Password is required.");
       return;
     }
+    if (!fullName) {
+      setMessage("Please provide your full name.");
+      return;
+    }
     if (!supabase) {
       setMessage("Supabase not initialized. Check environment variables.");
       console.error("Supabase client is null");
@@ -58,19 +64,26 @@ export default function LoginPage() {
     setMessage("");
     console.log("[handleSignUp] Starting signup with email:", email);
     try {
-      const { error, data } = await supabase.auth.signUp({ email, password });
+      // store full name in user metadata during sign up
+      const { error, data } = await supabase.auth.signUp({ email, password, options: { data: { full_name: fullName } } });
       console.log("[handleSignUp] Response:", { error, data });
       setLoading(false);
       if (error) {
         console.error("[handleSignUp] Error:", error);
         setMessage(error.message || "Sign up failed");
       } else {
+        try {
+          if ((data as any)?.session) {
+            await supabase.auth.updateUser({ data: { full_name: fullName } });
+          }
+        } catch (err) {
+          console.warn("Could not update user metadata after signUp", err);
+        }
+
         if ((data as any)?.session) {
-          console.log("[handleSignUp] Session exists, redirecting to /account");
-          router.push("/account");
+          router.push("/dashboard");
         } else {
-          console.log("[handleSignUp] No session; user needs to confirm email");
-          setMessage("Check your email for a confirmation link (if enabled).");
+          setMessage("Check your email for a confirmation link (if enabled). If you already have an account, try signing in.");
         }
       }
     } catch (err) {
@@ -111,7 +124,7 @@ export default function LoginPage() {
         setMessage(error.message || "Sign in failed");
       } else {
         console.log("[handleSignIn] Sign in successful, redirecting to /account");
-        router.push("/account");
+          router.push("/dashboard");
       }
     } catch (err) {
       setLoading(false);
@@ -124,7 +137,7 @@ export default function LoginPage() {
     setLoading(true);
     setMessage("");
     try {
-      const redirectTo = typeof window !== "undefined" ? `${window.location.origin}/account` : undefined;
+      const redirectTo = typeof window !== "undefined" ? `${window.location.origin}/dashboard` : undefined;
       const { error } = await supabase!.auth.signInWithOAuth({ provider, options: { redirectTo } });
       if (error) setMessage(error.message);
     } catch (err: any) {
@@ -191,6 +204,9 @@ export default function LoginPage() {
           </div>
 
           <div className="space-y-4">
+            {mode === "signup" && (
+              <input value={name} onChange={(e) => setName(e.target.value)} type="text" placeholder="Full name" className="w-full bg-slate-900 border border-white/10 text-white p-3 px-4 rounded-xl focus:outline-none focus:border-blue-500 transition" />
+            )}
             <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="Email Address" className="w-full bg-slate-900 border border-white/10 text-white p-3 px-4 rounded-xl focus:outline-none focus:border-blue-500 transition" />
             <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="Password" className="w-full bg-slate-900 border border-white/10 text-white p-3 px-4 rounded-xl focus:outline-none focus:border-blue-500 transition" />
             <div className="flex gap-3">
