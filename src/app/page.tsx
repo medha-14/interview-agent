@@ -10,55 +10,112 @@ import SetupModal from "../components/SetupModal";
 import { type CSSProperties, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-type DepthDotStyle = CSSProperties & {
+type DepthTokenStyle = CSSProperties & {
   "--drift-x": string;
   "--drift-y": string;
-  "--dot-opacity": string;
-  "--dot-start-scale": string;
-  "--dot-end-scale": string;
-  "--dot-start-blur": string;
-  "--dot-end-blur": string;
+  "--token-rotation": string;
+  "--token-opacity": string;
+  "--token-start-scale": string;
+  "--token-end-scale": string;
+  "--token-start-blur": string;
+  "--token-end-blur": string;
+  "--token-start-z": string;
+  "--token-end-z": string;
 };
 
 export default function Page() {
   const router = useRouter();
   const [modalOpen, setModalOpen] = useState(false);
-  const depthDots = useMemo(() => {
+  const depthTerms = useMemo(() => {
     const randomFromSeed = (seed: number) => {
       const x = Math.sin(seed * 9999.91) * 10000;
       return x - Math.floor(x);
     };
 
-    return Array.from({ length: 130 }, (_, index) => {
+    const interviewTerms = [
+      "O(n^2)",
+      "O(n log n)",
+      "O(log n)",
+      "O(1)",
+      "TLE",
+      "WA",
+      "RE",
+      "MLE",
+      "AC",
+      "Pass",
+      "WA",
+      "Edge",
+      "DFS",
+      "BFS",
+      "DP",
+      "Greedy",
+      "Heap",
+      "Trie",
+      "UnionFind",
+      "Backtrack",
+      "BinarySearch",
+      "PrefixSum",
+      "TwoPointers",
+      "SlidingWindow",
+      "Heap",
+    ];
+
+    return Array.from({ length: 146 }, (_, index) => {
       const seed = index + 1;
       const depth = randomFromSeed(seed * 9.17);
-      const left = randomFromSeed(seed * 1.13) * 100;
-      const top = randomFromSeed(seed * 2.17) * 100;
-      const size = 0.8 + depth * 2.8;
-      const duration = 7 + randomFromSeed(seed * 4.11) * 10;
+      const termIndex = Math.floor(randomFromSeed(seed * 8.29) * interviewTerms.length);
+      const zone = randomFromSeed(seed * 12.41);
+      let left: number;
+      let top: number;
+
+      if (zone < 0.34) {
+        // Lower left side band (feature/video empty spaces)
+        left = 1 + randomFromSeed(seed * 1.13) * 22;
+        top = 46 + randomFromSeed(seed * 2.17) * 50;
+      } else if (zone < 0.68) {
+        // Lower right side band
+        left = 77 + randomFromSeed(seed * 1.13) * 22;
+        top = 46 + randomFromSeed(seed * 2.17) * 50;
+      } else {
+        // Global distribution across the full landing page
+        left = 2 + randomFromSeed(seed * 1.13) * 96;
+        top = 4 + randomFromSeed(seed * 2.17) * 92;
+      }
+
+      const fontSize = 7.5 + depth * 5.5;
+      const duration = 9.6 + randomFromSeed(seed * 4.11) * 11.4;
       const delay = randomFromSeed(seed * 5.31) * -20;
-      const driftX = -90 + randomFromSeed(seed * 6.53) * 180;
-      const driftY = -180 - randomFromSeed(seed * 7.61) * 360;
-      const opacity = 0.22 + depth * 0.65;
-      const startScale = 0.12 + depth * 0.25;
-      const endScale = 1.4 + depth * 1.6;
-      const startBlur = 1.4 - depth * 1.1;
-      const endBlur = 0.2 + (1 - depth) * 1.1;
+      const outwardX = (left - 50) * 0.34;
+      const outwardY = (top - 50) * 0.24;
+      const driftX = -46 + randomFromSeed(seed * 6.53) * 92 + outwardX;
+      const driftY = -42 + randomFromSeed(seed * 7.61) * 84 + outwardY;
+      const rotation = -10 + randomFromSeed(seed * 3.19) * 20;
+      const opacity = 0.16 + depth * 0.24;
+      const startScale = 0.2 + depth * 0.16;
+      const endScale = 0.95 + depth * 0.45;
+      const startBlur = 1.8 - depth * 1.0;
+      const endBlur = 0.22 + (1 - depth) * 0.55;
+      const startZ = -930 + depth * 210;
+      const endZ = 90 + depth * 140;
 
       return {
-        id: `dot-${index}`,
+        id: `term-${index}`,
+        label: interviewTerms[termIndex],
         left,
         top,
-        size,
+        fontSize,
         duration,
         delay,
         driftX,
         driftY,
+        rotation,
         opacity,
         startScale,
         endScale,
         startBlur,
         endBlur,
+        startZ,
+        endZ,
       };
     });
   }, []);
@@ -84,25 +141,31 @@ export default function Page() {
     <>
       <Nav />
       <main id="landing-page" className="relative pt-32">
-        <div className="depth-dot-field pointer-events-none" aria-hidden="true">
-          {depthDots.map((dot) => {
-            const style: DepthDotStyle = {
-              left: `${dot.left}%`,
-              top: `${dot.top}%`,
-              width: `${dot.size}px`,
-              height: `${dot.size}px`,
-              animationDuration: `${dot.duration}s`,
-              animationDelay: `${dot.delay}s`,
-              "--drift-x": `${dot.driftX}px`,
-              "--drift-y": `${dot.driftY}px`,
-              "--dot-opacity": `${dot.opacity}`,
-              "--dot-start-scale": `${dot.startScale}`,
-              "--dot-end-scale": `${dot.endScale}`,
-              "--dot-start-blur": `${dot.startBlur}px`,
-              "--dot-end-blur": `${dot.endBlur}px`,
+        <div className="depth-term-field pointer-events-none" aria-hidden="true">
+          {depthTerms.map((term) => {
+            const style: DepthTokenStyle = {
+              left: `${term.left}%`,
+              top: `${term.top}%`,
+              fontSize: `${term.fontSize}px`,
+              animationDuration: `${term.duration}s`,
+              animationDelay: `${term.delay}s`,
+              "--drift-x": `${term.driftX}px`,
+              "--drift-y": `${term.driftY}px`,
+              "--token-rotation": `${term.rotation}deg`,
+              "--token-opacity": `${term.opacity}`,
+              "--token-start-scale": `${term.startScale}`,
+              "--token-end-scale": `${term.endScale}`,
+              "--token-start-blur": `${term.startBlur}px`,
+              "--token-end-blur": `${term.endBlur}px`,
+              "--token-start-z": `${term.startZ}px`,
+              "--token-end-z": `${term.endZ}px`,
             };
 
-            return <span key={dot.id} className="depth-dot" style={style} />;
+            return (
+              <span key={term.id} className="depth-term-token" style={style}>
+                {term.label}
+              </span>
+            );
           })}
         </div>
         <div className="hero-gradient absolute inset-0 pointer-events-none"></div>

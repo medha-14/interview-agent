@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../lib/supabaseClient";
 
@@ -8,8 +8,124 @@ function dispatchToggle(mode?: string | null) {
   window.dispatchEvent(new CustomEvent("toggleAuth", { detail: mode ?? null }));
 }
 
+const BRUTE_CODE = `vector<int> twoSum(vector<int>& nums, int target) {
+    for(int i = 0; i < nums.size(); i++) {
+        for(int j = i + 1; j < nums.size(); j++) {
+            if(nums[i] + nums[j] == target) {
+                return {i, j};
+            }
+        }
+    }
+    return {};
+}`;
+
+const OPTIMAL_CODE = `vector<int> twoSum(vector<int>& nums, int target) {
+    unordered_map<int, int> seen;
+    for(int i = 0; i < nums.size(); i++) {
+        if(seen.count(target - nums[i])) {
+            return {seen[target - nums[i]], i};
+        }
+        seen[nums[i]] = i;
+    }
+    return {};
+}`;
+
 export default function Hero() {
   const router = useRouter();
+  const [phase, setPhase] = useState(0);
+  const [charIndex, setCharIndex] = useState(0);
+
+  const highlightedLines = useMemo(() => {
+    const keywords = new Set(["for", "if", "return"]);
+    const types = new Set(["int", "vector", "unordered_map", "auto"]);
+    const functions = new Set(["twoSum", "size", "count"]);
+    const punctuation = new Set(["(", ")", "{", "}", "[", "]", ";", ",", "+", "-", "=", "<", ">", "!", "&"]);
+
+    const code = phase < 2 ? BRUTE_CODE : OPTIMAL_CODE.slice(0, charIndex);
+    const lines = code.split("\n");
+
+    return lines.map((line, lineIndex) => {
+      const tokens = line.split(/([ \t(){}[\];.,+\-=<>!&]+)/);
+      const isHotPath = phase === 1 && lineIndex >= 1 && lineIndex <= 5;
+
+      return {
+        lineIndex,
+        isHotPath,
+        tokens: tokens.map((token, tokenIndex) => {
+          const trimmed = token.trim();
+          let tone = "hero-token-plain";
+
+          if (!trimmed) {
+            tone = "hero-token-plain";
+          } else if (keywords.has(trimmed)) {
+            tone = "hero-token-keyword";
+          } else if (types.has(trimmed)) {
+            tone = "hero-token-type";
+          } else if (functions.has(trimmed)) {
+            tone = "hero-token-function";
+          } else if (/^\d+$/.test(trimmed)) {
+            tone = "hero-token-number";
+          } else if (punctuation.has(trimmed)) {
+            tone = "hero-token-punct";
+          }
+
+          return { id: `${lineIndex}-${tokenIndex}`, token, tone };
+        }),
+      };
+    });
+  }, [charIndex, phase]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const timers = new Set<number>();
+
+    const schedule = (fn: () => void, ms: number) => {
+      const id = window.setTimeout(() => {
+        timers.delete(id);
+        if (!cancelled) fn();
+      }, ms);
+      timers.add(id);
+    };
+
+    const runSequence = () => {
+      if (cancelled) return;
+      setPhase(0);
+      setCharIndex(0);
+
+      schedule(() => setPhase(1), 2200);
+      schedule(() => setPhase(2), 5600);
+      schedule(() => {
+        setPhase(3);
+        setCharIndex(OPTIMAL_CODE.length);
+      }, 9800);
+      schedule(runSequence, 14500);
+    };
+
+    runSequence();
+
+    return () => {
+      cancelled = true;
+      timers.forEach((id) => window.clearTimeout(id));
+      timers.clear();
+    };
+  }, []);
+
+  useEffect(() => {
+    let typingInterval: number | undefined;
+
+    if (phase === 2) {
+      typingInterval = window.setInterval(() => {
+        setCharIndex((prev) => {
+          const next = prev + 3;
+          return next >= OPTIMAL_CODE.length ? OPTIMAL_CODE.length : next;
+        });
+      }, 16);
+    }
+
+    return () => {
+      if (typingInterval) window.clearInterval(typingInterval);
+    };
+  }, [phase]);
 
   async function handleStart() {
     try {
@@ -72,15 +188,54 @@ export default function Hero() {
         </div>
       </div>
 
-      <div className="hero-orb-stage mx-auto">
-        <div className="hero-orb-glow"></div>
-        <div className="hero-orb-core"></div>
-        <div className="hero-orb-ring hero-orb-ring-a"></div>
-        <div className="hero-orb-ring hero-orb-ring-b"></div>
-        <span className="hero-orb-particle hero-orb-particle-1"></span>
-        <span className="hero-orb-particle hero-orb-particle-2"></span>
-        <span className="hero-orb-particle hero-orb-particle-3"></span>
-        <span className="hero-orb-particle hero-orb-particle-4"></span>
+      <div className="hero-laptop-stage mx-auto" aria-hidden="true">
+        <div className="hero-laptop-halo"></div>
+        <div className="hero-laptop">
+          <div className="hero-laptop-screen">
+            <div className="hero-laptop-toolbar">
+              <span></span>
+              <span></span>
+              <span></span>
+              <div className="hero-laptop-tab">two_sum.cpp</div>
+            </div>
+            <div className="hero-laptop-code">
+              <div className="hero-code-block">
+                {highlightedLines.map((line, index) => {
+                  const isLastLine = index === highlightedLines.length - 1;
+                  const showCursor = phase === 2 && charIndex < OPTIMAL_CODE.length && isLastLine;
+
+                  return (
+                    <div key={line.lineIndex} className={`hero-code-row ${line.isHotPath ? "hero-code-hot" : ""}`}>
+                      <span className="hero-code-number">{line.lineIndex + 1}</span>
+                      <span className="hero-code-text">
+                        {line.tokens.map((part) => (
+                          <span key={part.id} className={part.tone}>
+                            {part.token}
+                          </span>
+                        ))}
+                        {showCursor ? <span className="hero-inline-cursor"></span> : null}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className={`hero-ai-bubble ${phase === 1 || phase === 2 ? "is-visible" : ""}`}>
+                {phase === 1
+                  ? "Nested loop detected: O(n^2). Try a hash map for O(n)."
+                  : "Refactor in progress: Hash map lookup + single pass."}
+              </div>
+              <div className={`hero-terminal ${phase === 3 ? "is-open" : ""}`}>
+                <span className="hero-terminal-title">All test cases passed</span>
+                <span className="hero-terminal-metric">Runtime: O(n)  |  Memory: O(n)</span>
+              </div>
+            </div>
+          </div>
+          <div className="hero-laptop-base"></div>
+          <div className="hero-laptop-shadow"></div>
+        </div>
+        <span className="hero-laptop-spark hero-laptop-spark-1"></span>
+        <span className="hero-laptop-spark hero-laptop-spark-2"></span>
+        <span className="hero-laptop-spark hero-laptop-spark-3"></span>
       </div>
     </div>
   );
