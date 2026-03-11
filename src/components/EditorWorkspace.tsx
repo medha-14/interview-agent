@@ -352,7 +352,7 @@ const [submissionStatus, setSubmissionStatus] = useState<"accepted" | "wrong" | 
     try {
       setIsRunning(true);
       // Show only final output (no interim "Running...")
-      const res = await fetch("/api/run", {
+      const res = await fetch("/api/judge0", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ code: editorValue, language, stdin: customInput }),
@@ -392,7 +392,7 @@ const [submissionStatus, setSubmissionStatus] = useState<"accepted" | "wrong" | 
     for (let i = 0; i < testCases.length; i++) {
       const tc = testCases[i];
       try {
-        const url = useJudge ? '/api/judge0' : '/api/run';
+        const url = useJudge ? '/api/judge0' : '/api/judge0';
         const res = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -440,7 +440,7 @@ const summary = `Tests: ${passedCount}/${results.length} passed`;
     if (idx < 0 || idx >= testCases.length) return;
     const tc = testCases[idx];
     try {
-      const url = useJudge ? '/api/judge0' : '/api/run';
+      const url = useJudge ? '/api/judge0' : '/api/judge0';
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
