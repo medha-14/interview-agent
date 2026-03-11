@@ -47,7 +47,7 @@ export default function MessageForm() {
   return (
     <div className="w-full max-w-md mx-auto mb-20">
       <form onSubmit={handleSubmit} className="glass-card p-8 rounded-lg border border-white/10">
-        <h3 className="text-white font-bold text-xl mb-6 tracking-tight">Send us a Message</h3>
+        <h3 className="text-white font-bold text-xl mb-6 tracking-tight">Get in Touch</h3>
 
         <div className="mb-4">
           <input

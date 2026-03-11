@@ -36,7 +36,7 @@ async function listModels() {
         console.log(`   Response: ${response.text()}`);
         return; // Exit after first success
       } catch (error) {
-        console.error(`❌ Failed with '${modelName}':`);
+        console.error(`Failed with '${modelName}':`);
         console.error(`   ${error.message}`);
       }
     }
