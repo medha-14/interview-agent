@@ -47,6 +47,28 @@ type Props = {
   onEnd?: () => void;
 };
 
+const FIXED_THREE_SUM_QUESTION = {
+  title: "3Sum",
+  description:
+    'Given an integer array nums, return all the triplets [nums[i], nums[j], nums[k]] such that i != j, i != k, and j != k, and nums[i] + nums[j] + nums[k] == 0. The solution set must not contain duplicate triplets.\n\nInput format for this editor:\n- First line: integer n\n- Second line: n space-separated integers\n\nOutput format for deterministic judging:\n- Print each unique triplet as "a b c" (values inside each triplet in nondecreasing order)\n- Print triplets in lexicographic order, one triplet per line\n- If no triplet exists, print []',
+  examples: [
+    { input: "6\n-1 0 1 2 -1 -4", output: "-1 -1 2\n-1 0 1" },
+    { input: "3\n0 1 1", output: "[]" },
+    { input: "5\n0 0 0 0 0", output: "0 0 0" },
+  ],
+  difficulty: "Medium",
+  prompt:
+    "Given an integer array nums, return all unique triplets whose sum is 0. Do not return duplicate triplets.",
+};
+
+function getDefaultThreeSumTestCases() {
+  return (FIXED_THREE_SUM_QUESTION.examples || []).slice(0, 3).map((e: any) => ({
+    input: String(e.input ?? ""),
+    expected: String(e.output ?? e.expected ?? ""),
+    custom: false,
+  }));
+}
+
 export default function EditorWorkspace({ company, topic, duration, excludeTopics, onEnd }: Props) {
   const [unlocked, setUnlocked] = useState(false);
   const [agentText, setAgentText] = useState("\"Connecting to session...\"");
@@ -96,7 +118,11 @@ export default function EditorWorkspace({ company, topic, duration, excludeTopic
     setUnlocked(false);
     setMessages([]);
     setInterviewState("intro");
-    setCurrentQuestion(null);
+    setCurrentQuestion(FIXED_THREE_SUM_QUESTION);
+    setTestCases(getDefaultThreeSumTestCases());
+    setCurrentTestIndex(0);
+    setTestResults([]);
+    setSubmissionStatus(null);
     setAgentText(`"Connecting to AI Interviewer..."`);
 
     void startInterview();
@@ -106,22 +132,6 @@ export default function EditorWorkspace({ company, topic, duration, excludeTopic
   async function startInterview() {
     // Send an initial empty message to trigger the agent's greeting
     await sendMessageToAgent("Hello, I am ready for the interview.", true);
-    // Hardcoded mock question for local testing / demo
-    const mock = {
-      title: 'Sum Two Integers',
-      description: 'Read two integers from stdin and print their sum.',
-      examples: [
-        { input: '2 3', output: '5' },
-        { input: '10 20', output: '30' },
-        { input: '0 0', output: '0' }
-      ],
-      difficulty: 'Easy',
-      prompt: 'Given two integers separated by space, output their sum.'
-    };
-    setCurrentQuestion(mock);
-    // populate up to 3 test cases from examples
-    const cases = (mock.examples || []).slice(0, 3).map((e: any) => ({ input: String(e.input ?? ""), expected: String(e.output ?? e.expected ?? ""), custom: false }));
-    setTestCases(cases);
   }
 
   async function sendMessageToAgent(content: string, isSystemInit = false) {
@@ -139,7 +149,7 @@ export default function EditorWorkspace({ company, topic, duration, excludeTopic
         body: JSON.stringify({
           messages: newMessages,
           state: interviewState,
-          currentQuestion,
+          currentQuestion: currentQuestion ?? FIXED_THREE_SUM_QUESTION,
           code: editorValue, // Send current code to agent
           company,
           topic,
@@ -162,19 +172,6 @@ export default function EditorWorkspace({ company, topic, duration, excludeTopic
       if (data.message) {
         setAgentText(`"${data.message}"`);
         setMessages(prev => [...prev, { role: 'model', content: data.message }]);
-      }
-
-      if (data.newQuestion) {
-        setCurrentQuestion(data.newQuestion);
-        // update the session topic to the actual question name in the database
-        const sid = sessionIdRef.current;
-        if (sid && supabase) {
-          (async () => {
-            try {
-              await supabase.from("interview_sessions").update({ topic: data.newQuestion.title }).eq("id", sid);
-            } catch (err) { console.warn("Could not update session title", err); }
-          })();
-        }
       }
 
       if (data.nextState && data.nextState !== interviewState) {

@@ -1,6 +1,8 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import fs from "node:fs";
+import path from "node:path";
 
 function getUpstreamStatus(err: any): number | undefined {
   const status = err?.status ?? err?.response?.status;
@@ -16,6 +18,104 @@ function isDev() {
   return process.env.NODE_ENV !== "production";
 }
 
+function stripWrappedQuotes(value: string): string {
+  const trimmed = value.trim();
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1).trim();
+  }
+  return trimmed;
+}
+
+function parseEnvValueFromFile(filePath: string, key: string): string | undefined {
+  if (!fs.existsSync(filePath)) return undefined;
+
+  const content = fs.readFileSync(filePath, "utf8");
+  for (const rawLine of content.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) continue;
+
+    const idx = line.indexOf("=");
+    if (idx <= 0) continue;
+
+    const currentKey = line.slice(0, idx).trim();
+    if (currentKey !== key) continue;
+
+    const value = stripWrappedQuotes(line.slice(idx + 1));
+    return value || undefined;
+  }
+  return undefined;
+}
+
+function resolveGeminiApiKey(): string | undefined {
+  const envValue = process.env.GEMINI_API_KEY?.trim();
+  if (envValue) return envValue;
+
+  const cwd = process.cwd();
+  const envPaths = [
+    path.join(cwd, ".env.local"),
+    path.join(cwd, ".env"),
+    path.join(cwd, "interview-agent", ".env.local"),
+    path.join(cwd, "interview-agent", ".env"),
+  ];
+
+  for (const filePath of envPaths) {
+    const fileValue = parseEnvValueFromFile(filePath, "GEMINI_API_KEY");
+    if (fileValue) return fileValue;
+  }
+  return undefined;
+}
+
+function getLatestUserMessage(messages: any): string {
+  if (!Array.isArray(messages)) return "";
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m?.role === "user" && typeof m?.content === "string") {
+      return m.content.trim();
+    }
+  }
+  return "";
+}
+
+function evaluateThreeSumApproach(userMessage: string): { isOptimal: boolean; missing: string[] } {
+  const text = userMessage.toLowerCase();
+  const hasSort = /\bsort|sorted\b/.test(text);
+  const hasFixedIndex = /\bfix|fixed|anchor|iterate i|for each i|first element\b/.test(text);
+  const hasTwoPointers = /\btwo[\s-]?pointer|left and right|l and r\b/.test(text);
+  const hasDuplicateHandling = /\bduplicate|skip duplicates|skip same\b/.test(text);
+  const hasTimeComplexity =
+    /\bo\(\s*n\^?2\s*\)/.test(text) || /\bn\s*\^\s*2\b/.test(text) || /\bquadratic\b/.test(text);
+  const hasSpaceComplexity =
+    /\bo\(\s*1\s*\)/.test(text) ||
+    /\bconstant space\b/.test(text) ||
+    /\bo\(\s*log\s*n\s*\)/.test(text) ||
+    /\bexcluding output\b/.test(text);
+
+  const missing: string[] = [];
+  if (!hasSort) missing.push("sort the array first");
+  if (!hasFixedIndex) missing.push("fix one index `i` and solve for remaining pair");
+  if (!hasTwoPointers) missing.push("use two pointers (`left`, `right`) on the remaining range");
+  if (!hasDuplicateHandling) missing.push("explicitly skip duplicates to avoid repeated triplets");
+  if (!hasTimeComplexity) missing.push("state optimal time complexity `O(n^2)`");
+  if (!hasSpaceComplexity) {
+    missing.push("state auxiliary space complexity (`O(1)` excluding output, or `O(log n)` with sort stack)");
+  }
+
+  return { isOptimal: missing.length === 0, missing };
+}
+
+function isBruteForceThreeLoopApproach(userMessage: string): boolean {
+  const text = userMessage.toLowerCase();
+  return (
+    /\bthree loop|3 loop|triple loop|nested loop|three nested\b/.test(text) ||
+    /\bo\(\s*n\^?3\s*\)/.test(text) ||
+    /\bn\s*\^\s*3\b/.test(text) ||
+    /\bbrute force\b/.test(text)
+  );
+}
+
 // Initialize Supabase (Server-side)
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -24,13 +124,18 @@ const supabase = createClient(
 
 export async function POST(req: Request) {
   try {
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = resolveGeminiApiKey();
     if (!apiKey) {
       return NextResponse.json(
         {
           error: "Server misconfigured",
           detail: "GEMINI_API_KEY is missing",
-          hint: "Add GEMINI_API_KEY to interview-agent/.env (or .env.local) and restart the dev server.",
+          hint: "Set GEMINI_API_KEY in interview-agent/.env.local (preferred) and restart the dev server from the interview-agent directory.",
+          checked: [
+            "process.env.GEMINI_API_KEY",
+            ".env.local/.env in current working directory",
+            "interview-agent/.env.local and interview-agent/.env",
+          ],
         },
         { status: 500 }
       );
@@ -50,6 +155,62 @@ export async function POST(req: Request) {
     }
 
     const { messages, state, currentQuestion, code, company, topic, difficulty, excludeTopics } = body ?? {};
+    const latestUserMessage = getLatestUserMessage(messages);
+
+    // Deterministic interview flow for intro -> approach -> coding.
+    if (state === "intro") {
+      if (!latestUserMessage) {
+        return NextResponse.json({
+          message: "Please introduce yourself briefly first (background, strengths, and target role).",
+          nextState: "intro",
+          newQuestion: null,
+        });
+      }
+
+      return NextResponse.json({
+        message:
+          "Read below question and provide approach. Explain your algorithm, duplicate-handling strategy, and time/space complexity before coding.",
+        nextState: "approach",
+        newQuestion: null,
+      });
+    }
+
+    if (state === "approach") {
+      if (!latestUserMessage) {
+        return NextResponse.json({
+          message:
+            "Please explain your 3Sum approach first. Include how you avoid duplicate triplets and the final time/space complexity.",
+          nextState: "approach",
+          newQuestion: null,
+        });
+      }
+
+      const approachEval = evaluateThreeSumApproach(latestUserMessage);
+      if (approachEval.isOptimal) {
+        return NextResponse.json({
+          message:
+            "Your 3Sum approach is correct and optimal (Time: O(n^2), Space: O(1) auxiliary excluding output). Start coding.",
+          nextState: "coding",
+          newQuestion: null,
+        });
+      }
+
+      if (isBruteForceThreeLoopApproach(latestUserMessage)) {
+        return NextResponse.json({
+          message:
+            "That approach works functionally, but it is brute-force. Can you think of a more optimized strategy than O(n^3), and explain how you will avoid duplicate triplets and what the final time/space complexity will be?",
+          nextState: "approach",
+          newQuestion: null,
+        });
+      }
+
+      return NextResponse.json({
+        message:
+          "Good start. Please refine your approach to an interview-optimal solution, clearly covering duplicate handling and final time/space complexity. Then share the improved approach before coding.",
+        nextState: "approach",
+        newQuestion: null,
+      });
+    }
 
     // 1. Construct the prompt based on state
     // We strictly follow the user's request:
@@ -227,7 +388,7 @@ export async function POST(req: Request) {
     let newQuestion = null;
 
     // 3. Handle State Transitions & Data Fetching
-    if (shouldFetchQuestion || (nextState === 'approach' && !currentQuestion)) {
+    if (!currentQuestion && (shouldFetchQuestion || nextState === "approach")) {
       // Fetch a random question from Supabase
       // User Request: "it should not have the topic selected" -> We ignore topic if company is present,
       // or simply pass empty array to widen the search as requested.
