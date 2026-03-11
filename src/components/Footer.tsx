@@ -1,4 +1,5 @@
 import React from "react";
+import MessageForm from "./MessageForm";
 
 export default function Footer() {
   return (
@@ -54,6 +55,7 @@ export default function Footer() {
           </div>
         </div>
       </div>
+      <MessageForm />
       <div className="flex flex-col md:flex-row justify-between items-center gap-12">
         <div className="text-center md:text-left">
           <h3 className="text-white font-bold text-3xl mb-3 tracking-tight">Let&apos;s Connect</h3>
